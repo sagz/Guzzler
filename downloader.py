@@ -9,17 +9,45 @@ url = 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_
 #test
 #url = "http://download.thinkbroadband.com/10MB.zip" # testing
 
-time_limit = False;
-not_enough = True;
-if len(sys.argv)>1:
+time_bound = False
+time_limit = 0
+not_enough = True
+rounds = 1000
 
-	if int(sys.argv[1])>0:
-		rounds = int(sys.argv[1])
-else:
-	rounds = 1000
+if len(sys.argv)>1:
+	if sys.argv[1][-1] == 's':
+		try:
+			time_bound = True
+			time_limit = int(sys.argv[1][0:-1])
+			print 'I will guzzle for %d seconds' % int(sys.argv[1][0:-1])
+		except ValueError:
+			pass
+	elif sys.argv[1][-1] == 'm':
+		try:
+			time_bound = True
+			time_limit = int(sys.argv[1][0:-1]) * 60
+			print 'I will guzzle for %d minutes' % int(sys.argv[1][0:-1])
+		except ValueError:
+			pass
+	elif sys.argv[1][-1] == 'h':
+		try: 
+			time_bound = True
+			time_limit = int(sys.argv[1][0:-1]) * 60 * 60
+			print 'I will guzzle for %d hours' % int(sys.argv[1][0:-1])
+		except ValueError:
+			pass
+	else:
+		try:
+			if int(sys.argv[1])>0:
+				rounds = int(sys.argv[1])
+				print 'I will guzzle for %d rounds' % int(sys.argv[1])
+		except ValueError:
+			pass
+
 file_name = url.split('/')[-1]
 #guzzled_mb = 0.;
 start_time = time.time()
+semaphore = 0
 
 while not_enough:
 	u = urllib2.urlopen(url)
@@ -41,12 +69,18 @@ while not_enough:
 	    #status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
 	    #status = status + chr(8)*(len(status)+1)
 	    #print status,
-	    current_guzzled = (i*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
+	    current_guzzled = (semaphore*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
 	    elapsed_time = ((time.time()-start_time)/60)
 
 	    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (current_guzzled, elapsed_time, current_guzzled/elapsed_time/60)
 
 	    print guzzle_status,
+
+	    if time_bound:
+	    	if time.time()-start_time > time_limit:
+				f.close()
+				os.remove(file_name)
+				sys.exit(0)
 
 	f.close()
 
@@ -55,3 +89,8 @@ while not_enough:
 
 	# removing
 	os.remove(file_name)
+	semaphore+=1
+
+	if not time_bound:
+		if semaphore >= rounds:
+			not_enough = False #that is, enough is enough.
