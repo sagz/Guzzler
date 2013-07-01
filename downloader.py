@@ -19,28 +19,28 @@ if len(sys.argv)>1:
 		try:
 			time_bound = True
 			time_limit = int(sys.argv[1][0:-1])
-			print 'I will guzzle for %d seconds' % int(sys.argv[1][0:-1])
+			print 'Guzzler started for %d seconds' % int(sys.argv[1][0:-1])
 		except ValueError:
 			pass
 	elif sys.argv[1][-1] == 'm':
 		try:
 			time_bound = True
 			time_limit = int(sys.argv[1][0:-1]) * 60
-			print 'I will guzzle for %d minutes' % int(sys.argv[1][0:-1])
+			print 'Guzzler started for %d minutes' % int(sys.argv[1][0:-1])
 		except ValueError:
 			pass
 	elif sys.argv[1][-1] == 'h':
 		try: 
 			time_bound = True
 			time_limit = int(sys.argv[1][0:-1]) * 60 * 60
-			print 'I will guzzle for %d hours' % int(sys.argv[1][0:-1])
+			print 'Guzzler started for %d hours' % int(sys.argv[1][0:-1])
 		except ValueError:
 			pass
 	else:
 		try:
 			if int(sys.argv[1])>0:
 				rounds = int(sys.argv[1])
-				print 'I will guzzle for %d rounds' % int(sys.argv[1])
+				print 'Guzzler started for %d rounds' % int(sys.argv[1])
 		except ValueError:
 			pass
 
