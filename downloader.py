@@ -1,5 +1,4 @@
-from StringIO import StringIO
-import urllib2, os, sys, time
+import urllib2, sys, time
 
 #MS Office
 #url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
