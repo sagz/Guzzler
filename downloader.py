@@ -1,3 +1,4 @@
+from StringIO import StringIO
 import urllib2, os, sys, time
 
 #MS Office
@@ -51,7 +52,7 @@ semaphore = 0
 
 while not_enough:
 	u = urllib2.urlopen(url)
-	f = open(file_name, 'wb')
+	#f = StringIO() #open(file_name, 'wb')
 	meta = u.info()
 	file_size = int(meta.getheaders("Content-Length")[0])
 	#print "Downloading: %s Bytes: %s" % (file_name, file_size)
@@ -65,7 +66,7 @@ while not_enough:
 	        break
 
 	    file_size_dl += len(buffer)
-	    f.write(buffer)
+	    #f.write(buffer)
 	    #status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
 	    #status = status + chr(8)*(len(status)+1)
 	    #print status,
@@ -78,17 +79,17 @@ while not_enough:
 
 	    if time_bound:
 	    	if time.time()-start_time > time_limit:
-				f.close()
-				os.remove(file_name)
+				#f.close()
+				#os.remove(file_name)
 				sys.exit(0)
 
-	f.close()
+	#f.close()
 
 	# listing directories
 	# print "The dir is: %s" %os.listdir(os.getcwd())
 
 	# removing
-	os.remove(file_name)
+	#os.remove(file_name)
 	semaphore+=1
 
 	if not time_bound:
