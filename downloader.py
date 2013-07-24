@@ -1,10 +1,10 @@
 import urllib2, sys, time
 
 #MS Office
-#url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
+url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
 
 #Chrome
-url = 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm'
+#url = 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm'
 
 #test
 #url = "http://download.thinkbroadband.com/10MB.zip" # testing
