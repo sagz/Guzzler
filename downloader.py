@@ -1,10 +1,19 @@
 import urllib2, sys, time
+from multiprocessing import Pool
 
 #MS Office
-url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
+#url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
 
+
+#url = "ftp://ftp.adobe.com/pub/adobe/aftereffects/win/cs4/32bitAEPProCS4.zip"
 #Chrome
 #url = 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm'
+url = [ 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm']
+
 
 #test
 #url = "http://download.thinkbroadband.com/10MB.zip" # testing
@@ -77,48 +86,50 @@ if len(sys.argv)>1:
 		except ValueError:
 			pass
 
-
-file_name = url.split('/')[-1]
-#guzzled_mb = 0.;
 start_time = time.time()
-semaphore = 0
 
-while not_enough:
-	
-	try:
-		u = urllib2.urlopen(url)
-	except urllib2.URLError:		
-		print '\rInternet problems, bro',
-		continue
+def guzzle(fileurl):
+	semaphore = 0
+	global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time
+	while not_enough:
+		try:
+			u = urllib2.urlopen(fileurl)
+		except urllib2.URLError:		
+			print '\rInternet problems, bro',
+			continue
 
-	meta = u.info()
-	file_size = int(meta.getheaders("Content-Length")[0])
-	
-	file_size_dl = 0
-	block_sz = 1024*1
-	while True:
-	    buffer = u.read(block_sz)
-	    if not buffer:
-	        break
+		meta = u.info()
+		file_size = int(meta.getheaders("Content-Length")[0])
+		
+		file_size_dl = 0
+		block_sz = 1024*1
+		while True:
+		    buffer = u.read(block_sz)
+		    if not buffer:
+		        break
 
-	    file_size_dl += len(buffer)
-	    current_guzzled = (semaphore*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
-	    elapsed_time = ((time.time()-start_time)/60)
+		    file_size_dl += len(buffer)
+		    current_guzzled = (semaphore*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
+		    elapsed_time = ((time.time()-start_time)/60)
 
-	    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (current_guzzled, elapsed_time, current_guzzled/elapsed_time/60)
+		    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (current_guzzled, elapsed_time, current_guzzled/elapsed_time/60)
 
-	    print guzzle_status,
+		    print guzzle_status,
 
-	    if data_bound:
-	    	if current_guzzled > data_limit:
-	    		sys.exit(0)
+		    if data_bound:
+		    	if current_guzzled > data_limit:
+		    		sys.exit(0)
 
-	    if time_bound:
-	    	if time.time()-start_time > time_limit:
-				sys.exit(0)
+		    if time_bound:
+		    	if time.time()-start_time > time_limit:
+					sys.exit(0)
 
-	semaphore+=1
+		semaphore+=1
 
-	if not time_bound:
-		if semaphore >= rounds:
-			not_enough = False #that is, enough is enough.
+		if not time_bound:
+			if semaphore >= rounds:
+				not_enough = False #that is, enough is enough.
+
+p = Pool(5)
+#p.map(guzzle, url)
+guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
