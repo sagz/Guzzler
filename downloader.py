@@ -87,7 +87,7 @@ while not_enough:
 	
 	try:
 		u = urllib2.urlopen(url)
-	except urllib2.URLError:
+	except urllib2.URLError:		
 		print '\rInternet problems, bro',
 		continue
 
