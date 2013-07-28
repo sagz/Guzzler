@@ -11,7 +11,7 @@ from multiprocessing import Pool
 url = [ 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
-		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+		
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm']
 
 
