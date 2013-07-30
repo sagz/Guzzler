@@ -11,7 +11,7 @@ from multiprocessing import Pool
 url = [ 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
-		
+		"http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img",
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm']
 
 
@@ -114,7 +114,7 @@ def guzzle(fileurl):
 
 		    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (current_guzzled, elapsed_time, current_guzzled/elapsed_time/60)
 
-		    print guzzle_status,
+		    #print guzzle_status,
 
 		    if data_bound:
 		    	if current_guzzled > data_limit:
@@ -131,5 +131,5 @@ def guzzle(fileurl):
 				not_enough = False #that is, enough is enough.
 
 p = Pool(5)
-#p.map(guzzle, url)
-guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
+p.map(guzzle, url)
+#guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
