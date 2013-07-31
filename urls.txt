@@ -1,0 +1,3 @@
+http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img
+https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm
+https://dl.google.com/dl/androidjumper/mtp/current/androidfiletransfer.dmg

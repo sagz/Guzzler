@@ -1,5 +1,6 @@
-import urllib2, sys, time
-from multiprocessing import Pool
+import urllib2, sys, time, multiprocessing
+from multiprocessing import Pool, Value
+from ctypes import c_ulong
 
 #MS Office
 #url = "http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img"
@@ -8,9 +9,7 @@ from multiprocessing import Pool
 #url = "ftp://ftp.adobe.com/pub/adobe/aftereffects/win/cs4/32bitAEPProCS4.zip"
 #Chrome
 #url = 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm'
-url = [ 'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
-		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
-		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm',
+url = [ 
 		"http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img",
 		'https://dl.google.com/dl/linux/direct/google-chrome-unstable_current_x86_64.rpm']
 
@@ -88,9 +87,13 @@ if len(sys.argv)>1:
 
 start_time = time.time()
 
+each_data = []
+total_data = Value(c_ulong, 0)
+
 def guzzle(fileurl):
 	semaphore = 0
-	global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time
+	global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time, total_data
+	#each_data[multiprocessing.current_process().name] = 0
 	while not_enough:
 		try:
 			u = urllib2.urlopen(fileurl)
@@ -102,7 +105,7 @@ def guzzle(fileurl):
 		file_size = int(meta.getheaders("Content-Length")[0])
 		
 		file_size_dl = 0
-		block_sz = 1024*1
+		block_sz = 1024*1024
 		while True:
 		    buffer = u.read(block_sz)
 		    if not buffer:
@@ -110,19 +113,22 @@ def guzzle(fileurl):
 
 		    file_size_dl += len(buffer)
 		    current_guzzled = (semaphore*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
-		    elapsed_time = ((time.time()-start_time)/60)
-
-		    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (current_guzzled, elapsed_time, current_guzzled/elapsed_time/60)
-
+		    #each_data[multiprocessing.current_process().name] += (file_size_dl/(1024*1024))
+		    total_data.value += 1 #file_size_dl/1024/1024
+		    #print total_data,
 		    #print guzzle_status,
 
+		    print multiprocessing.current_process().name, total_data.value, file_size_dl/1024/1024, file_size/1024/1024
+		    #print each_data
 		    if data_bound:
 		    	if current_guzzled > data_limit:
-		    		sys.exit(0)
+		    		not_enough = False
+		    		break #sys.exit(0)
 
 		    if time_bound:
 		    	if time.time()-start_time > time_limit:
-					sys.exit(0)
+					not_enough = False
+					break #sys.exit(0)
 
 		semaphore+=1
 
@@ -130,6 +136,17 @@ def guzzle(fileurl):
 			if semaphore >= rounds:
 				not_enough = False #that is, enough is enough.
 
-p = Pool(5)
-p.map(guzzle, url)
+p = Pool(2)
+workers = p.map_async(guzzle, url)
+
+p.close()
+
+#while not workers.ready():
+	#print total_data.value
+	#guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (total_data, ((time.time()-start_time)/60), total_data/(((time.time()-start_time)/60))/60)
+	#print guzzle_status,
+
+p.join()
+
+print "Out!"
 #guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
