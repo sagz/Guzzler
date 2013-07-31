@@ -114,11 +114,11 @@ def guzzle(fileurl):
 		    file_size_dl += len(buffer)
 		    current_guzzled = (semaphore*(float(file_size)/(1024*1024)))+(file_size_dl/(1024*1024))
 		    #each_data[multiprocessing.current_process().name] += (file_size_dl/(1024*1024))
-		    total_data.value += 1 #file_size_dl/1024/1024
+		    total_data.value += len(buffer)/1024/1024 #file_size_dl/1024/1024
 		    #print total_data,
 		    #print guzzle_status,
 
-		    print multiprocessing.current_process().name, total_data.value, file_size_dl/1024/1024, file_size/1024/1024
+		    #print multiprocessing.current_process().name, total_data.value, file_size_dl/1024/1024, file_size/1024/1024
 		    #print each_data
 		    if data_bound:
 		    	if current_guzzled > data_limit:
@@ -141,12 +141,12 @@ workers = p.map_async(guzzle, url)
 
 p.close()
 
-#while not workers.ready():
+while not workers.ready():
 	#print total_data.value
-	#guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (total_data, ((time.time()-start_time)/60), total_data/(((time.time()-start_time)/60))/60)
-	#print guzzle_status,
+	guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (total_data.value, ((time.time()-start_time)/60), total_data.value/(((time.time()-start_time)/60))/60)
+	print guzzle_status,
 
 p.join()
 
-print "Out!"
+#print "Out!"
 #guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
