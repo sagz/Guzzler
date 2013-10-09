@@ -6,16 +6,19 @@ from multiprocessing import Pool, Value
 from ctypes import c_ulong
 
 
-def read_urls(input_file):
+def read_urls(filename):
+    '''
+    Reads the list of URLs from a text file in the same folder.
+    Loads from file and returns a Python list of urls
+
+    filename : name of file in the same folder with URLs (one per line)
+    '''
     urls = []
-    for line in open(input_file):
+    for line in open(filename):
         # Check for empty/commented lines
         if line and not line.startswith('#') and len(line.strip()) > 5:
             urls.append(line.strip())
     return urls
-
-urls = read_urls('urls.txt')
-
 
 time_bound = False
 time_limit = 0
@@ -140,13 +143,12 @@ workers = p.map_async(guzzle, urls)
 p.close()
 
 while not workers.ready():
-    # print total_data.value
+    megabytes_guzzled = total_data.value
+    minutes_elapsed = ((time.time() - start_time) / 60)
+    average_speed = megabytes_guzzled / minutes_elapsed / 60
+
     guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (
-        total_data.value, ((time.time() - start_time) / 60), total_data.value / (((time.time() - start_time) / 60)) / 60)
+        megabytes_guzzled, minutes_elapsed, average_speed)
     print(guzzle_status, end="")
 
 p.join()
-
-
-print("Out!")
-# guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')

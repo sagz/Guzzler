@@ -1,3 +1,7 @@
+# This is a list of file URLs that the guzzler uses to download.
+# Comments lines (prefixed by '#') are ignored
+# Currently only supporting HTTP/HTTPS urls. FTP support is To-Do
+
 # MS Office
 http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img
 
