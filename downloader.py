@@ -1,4 +1,4 @@
-import urllib2
+import urllib.request
 import sys
 import time
 import multiprocessing
@@ -14,7 +14,7 @@ def read_urls(input_file):
             urls.append(line.strip())
     return urls
 
-url = read_urls('urls.txt')
+urls = read_urls('urls.txt')
 
 
 time_bound = False
@@ -31,28 +31,28 @@ if len(sys.argv) > 1:
         try:
             time_bound = True
             time_limit = int(sys.argv[1][0:-1])
-            print 'Guzzler started for %d seconds' % int(sys.argv[1][0:-1])
+            print('Guzzler started for %d seconds' % int(sys.argv[1][0:-1]))
         except ValueError:
             pass
     elif sys.argv[1][-1] == 'm' or sys.argv[1][-1] == 'M':
         try:
             time_bound = True
             time_limit = int(sys.argv[1][0:-1]) * 60
-            print 'Guzzler started for %d minutes' % int(sys.argv[1][0:-1])
+            print('Guzzler started for %d minutes' % int(sys.argv[1][0:-1]))
         except ValueError:
             pass
     elif sys.argv[1][-1] == 'h' or sys.argv[1][-1] == 'H':
         try:
             time_bound = True
             time_limit = int(sys.argv[1][0:-1]) * 60 * 60
-            print 'Guzzler started for %d hours' % int(sys.argv[1][0:-1])
+            print('Guzzler started for %d hours' % int(sys.argv[1][0:-1]))
         except ValueError:
             pass
     elif sys.argv[1][-1] == 'd' or sys.argv[1][-1] == 'D':
         try:
             time_bound = True
             time_limit = int(sys.argv[1][0:-1]) * 60 * 60 * 24
-            print 'Guzzler started for %d days' % int(sys.argv[1][0:-1])
+            print('Guzzler started for %d days' % int(sys.argv[1][0:-1]))
         except ValueError:
             pass
     elif sys.argv[1][-1] == 'b' or sys.argv[1][-1] == 'B':
@@ -60,28 +60,28 @@ if len(sys.argv) > 1:
             try:
                 data_bound = True
                 data_limit = int(sys.argv[1][0:-2])
-                print 'Guzzler started for %d megabytes' % int(sys.argv[1][0:-2])
+                print('Guzzler started for %d megabytes' % int(sys.argv[1][0:-2]))
             except ValueError:
                 pass
         elif sys.argv[1][-2] == 'G' or sys.argv[1][-2] == 'G':
             try:
                 data_bound = True
                 data_limit = int(sys.argv[1][0:-2]) * 1024
-                print 'Guzzler started for %d gigabytes' % int(sys.argv[1][0:-2])
+                print('Guzzler started for %d gigabytes' % int(sys.argv[1][0:-2]))
             except ValueError:
                 pass
         elif sys.argv[1][-2] == 't' or sys.argv[1][-2] == 'T':
             try:
                 data_bound = True
                 data_limit = int(sys.argv[1][0:-2]) * 1024 * 1024
-                print 'Guzzler started for %d terabytes' % int(sys.argv[1][0:-2])
+                print('Guzzler started for %d terabytes' % int(sys.argv[1][0:-2]))
             except ValueError:
                 pass
     else:
         try:
             if int(sys.argv[1]) > 0:
                 rounds = int(sys.argv[1])
-                print 'Guzzler started for %d rounds' % int(sys.argv[1])
+                print('Guzzler started for %d rounds' % int(sys.argv[1]))
         except ValueError:
             pass
 
@@ -92,18 +92,18 @@ total_data = Value(c_ulong, 0)
 
 
 def guzzle(fileurl):
-    semaphore = 0
+    round_number = 0
     global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time, total_data
+
     #each_data[multiprocessing.current_process().name] = 0
     while not_enough:
         try:
-            u = urllib2.urlopen(fileurl)
-        except urllib2.URLError:
-            print '\rInternet problems, bro',
+            u = urllib.request.urlopen(fileurl)
+        except urllib.error.URLError:
+            print('\rInternet problems, bro')
             continue
 
-        meta = u.info()
-        file_size = int(meta.getheaders("Content-Length")[0])
+        file_size = int(u.getheader("Content-Length"))
 
         file_size_dl = 0
         block_sz = 1024 * 1024
@@ -113,15 +113,11 @@ def guzzle(fileurl):
                 break
 
             file_size_dl += len(buffer)
-            current_guzzled = (semaphore * (float(file_size) / (1024 * 1024))) + (
+            current_guzzled = (round_number * (float(file_size) / (1024 * 1024))) + (
                 file_size_dl / (1024 * 1024))
             #each_data[multiprocessing.current_process().name] += (file_size_dl/(1024*1024))
-            total_data.value += len(buffer) / 1024 / 1024  # file_size_dl/1024/1024
-            # print total_data,
-            # print guzzle_status,
+            total_data.value += int(len(buffer) / 1024 / 1024)  # file_size_dl/1024/1024
 
-            # print multiprocessing.current_process().name, total_data.value, file_size_dl/1024/1024, file_size/1024/1024
-            # print each_data
             if data_bound:
                 if current_guzzled > data_limit:
                     not_enough = False
@@ -132,14 +128,14 @@ def guzzle(fileurl):
                     not_enough = False
                     break  # sys.exit(0)
 
-        semaphore += 1
+        round_number += 1
 
         if not time_bound:
-            if semaphore >= rounds:
+            if round_number >= rounds:
                 not_enough = False  # that is, enough is enough.
 
-p = Pool(2)
-workers = p.map_async(guzzle, url)
+p = Pool(3)
+workers = p.map_async(guzzle, urls)
 
 p.close()
 
@@ -147,9 +143,10 @@ while not workers.ready():
     # print total_data.value
     guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (
         total_data.value, ((time.time() - start_time) / 60), total_data.value / (((time.time() - start_time) / 60)) / 60)
-    print guzzle_status,
+    print(guzzle_status, end="")
 
 p.join()
 
-# print "Out!"
+
+print("Out!")
 # guzzle('http://care.dlservice.microsoft.com/dl/download/2/9/C/29CC45EF-4CDA-4710-9FB3-1489786570A1/OfficeProfessionalPlus_x64_en-us.img')
