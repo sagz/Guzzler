@@ -1,12 +1,11 @@
 import urllib.request
 import sys
 import time
-import multiprocessing
-from multiprocessing import Pool, Value
-from ctypes import c_ulong
+from multiprocessing import Value
+from ctypes import c_ulonglong
 import argparse
 
-total_downloaded_bytes = Value(c_ulong, 0)
+total_downloaded_bytes = Value(c_ulonglong, 0)
 BLOCK_SIZE = 1024 * 1024
 
 SECONDS_PER_MINUTE = 60
@@ -17,8 +16,22 @@ BYTES_PER_MEGABYTE = 1024 * 1024
 MEGABYTES_PER_GIGABYTE = 1024
 GIGABYTES_PER_TERABYTE = 1024
 
+# 1000 years.
+DEFAULT_MAXIMUM_TIME = 1000 * 365 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
+
 
 def set_args():
+    """
+    Collects and parses the command line arguments. All arguments are optional.
+    Returns bound_type and limit.
+    bound_type : string with either of two values
+                'data' means guzzling is limited by data
+                'time' mean guzzling is limited by time
+    limit : raw value of limit
+            if bound_type is 'data', limit is the number of bytes
+            if bound_type is 'time', limit is the number of seconds
+    """
+
     parser = argparse.ArgumentParser(description="""Guzzle Away!
         Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
         packages from many high-speed servers and discarding them instantly.
@@ -28,24 +41,22 @@ def set_args():
     bound = parser.add_mutually_exclusive_group()
 
     bound.add_argument("-s", "--seconds", type=int,
-                       help="Number of seconds to guzzle away.\nDefault is forever.")
+                       help="Number of seconds to guzzle away.\nDefault is 1000 years.")
     bound.add_argument("-m", "--minutes", type=int,
-                       help="Number of minutes to guzzle away.\nDefault is forever.")
+                       help="Number of minutes to guzzle away.\nDefault is 1000 years.")
     bound.add_argument("-hr", "--hours", type=int,
-                       help="Number of hours to guzzle away.\nDefault is forever.")
+                       help="Number of hours to guzzle away.\nDefault is 1000 years.")
     bound.add_argument("-d", "--days", type=int,
-                       help="Number of days to guzzle away.\nDefault is forever.")
+                       help="Number of days to guzzle away.\nDefault is 1000 years.")
     bound.add_argument("-mb", "--megabytes", type=int,
-                       help="Number of megabytes to download.\nDefault is time-bound to run forever.")
+                       help="Number of megabytes to download.\nDefault is time-bound to run 1000 years.")
     bound.add_argument("-gb", "--gigabytes", type=int,
-                       help="Number of gigabytes to download.\nDefault is time-bound to run forever.")
+                       help="Number of gigabytes to download.\nDefault is time-bound to run 1000 years.")
     bound.add_argument("-tb", "--terabytes", type=int,
-                       help="Number of terabytes to download.\nDefault is time-bound to run forever.")
-    bound.add_argument("-r", "--rounds", type=int,
-                       help="Number of rounds of downloads.\nDefault is 1000")
+                       help="Number of terabytes to download.\nDefault is time-bound to run 1000 years.")
 
-    parser.add_argument("-p", "--processes", type=int,
-                        help="Number of guzzling processes to run simultaneously.\nDefault is 4")
+    # parser.add_argument("-p", "--processes", type=int,
+    #                    help="Number of guzzling processes to run simultaneously.\nDefault is 4")
 
     args = parser.parse_args()
 
@@ -65,6 +76,9 @@ def set_args():
     elif args.terabytes:
         return 'data', args.terabytes * GIGABYTES_PER_TERABYTE * MEGABYTES_PER_GIGABYTE * BYTES_PER_MEGABYTE
 
+    else:
+        return 'time', DEFAULT_MAXIMUM_TIME
+
 
 def read_urls(filename):
     '''
@@ -79,6 +93,17 @@ def read_urls(filename):
         if line and not line.startswith('#') and len(line.strip()) > 5:
             urls.append(line.strip())
     return urls
+
+
+def guzzle_status(start_time):
+    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
+    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
+    average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
+
+    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (
+        megabytes_guzzled, minutes_elapsed, average_speed)
+
+    return guzzle_status
 
 
 def guzzle(bound_type, limit, start_time, url):

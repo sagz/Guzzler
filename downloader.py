@@ -6,8 +6,8 @@ from multiprocessing import Pool, Value
 from ctypes import c_ulong
 import guzzler
 import functools
+import signal
 
-PROCESSES = 3
 URLS_FILE = 'urls.txt'
 
 
@@ -17,25 +17,26 @@ def main():
     bound_type, limit = guzzler.set_args()
     start_time = time.time()
 
-    p = Pool(PROCESSES)
+    p = Pool()
     workers = p.map_async(
         functools.partial(guzzler.guzzle, bound_type, limit, start_time), urls)
 
     p.close()
 
     while not workers.ready():
-        megabytes_guzzled = guzzler.total_downloaded_bytes.value / guzzler.BYTES_PER_MEGABYTE
-        minutes_elapsed = ((time.time() - start_time) / guzzler.SECONDS_PER_MINUTE)
-        average_speed = megabytes_guzzled / minutes_elapsed / guzzler.SECONDS_PER_MINUTE
+        print(guzzler.guzzle_status(start_time), end="")
 
-        guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (
-            megabytes_guzzled, minutes_elapsed, average_speed)
+    graceful_exit(p)
 
-        print(guzzle_status, end="")
 
+def SIGINT_handler(signal, frame):
+    graceful_exit()
+
+
+def graceful_exit(p):
     p.join()
-
     print()
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, graceful_exit)
     main()
