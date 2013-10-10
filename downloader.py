@@ -7,10 +7,16 @@ from ctypes import c_ulong
 #import guzzler
 import argparse
 
+SECONDS_PER_MINUTE = 60
+MINUTES_PER_HOUR = 60
+HOURS_PER_DAY = 24
 
-def main():
-    #urls = read_urls('urls.txt')
+BYTES_PER_MEGABYTE = 1024 * 1024
+MEGABYTES_PER_GIGABYTE = 1024
+GIGABYTES_PER_TERABYTE = 1024
 
+
+def set_args():
     parser = argparse.ArgumentParser(description="""Guzzle Away!
         Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
         packages from many high-speed servers and discarding them instantly.
@@ -42,8 +48,28 @@ def main():
     args = parser.parse_args()
 
     if args.seconds:
-        print(args.seconds)
+        return 'time', args.seconds
+    elif args.minutes:
+        return 'time', args.minutes * SECONDS_PER_MINUTE
+    elif args.hours:
+        return 'time', args.hours * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
+    elif args.days:
+        return 'time', args.days * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
 
+    elif args.megabytes:
+        return 'data', args.megabytes * BYTES_PER_MEGABYTE
+    elif args.gigabytes:
+        return 'data', args.gigabytes * MEGABYTES_PER_GIGABYTE * BYTES_PER_MEGABYTE
+    elif args.terabytes:
+        return 'data', args.terabytes * GIGABYTES_PER_TERABYTE * MEGABYTES_PER_GIGABYTE * BYTES_PER_MEGABYTE
+
+
+def main():
+    #urls = read_urls('urls.txt')
+
+    bound_type, limit = set_args()
+
+    print(bound_type, limit)
 
 if __name__ == '__main__':
     main()

@@ -29,6 +29,7 @@ data_limit = 0
 not_enough = True
 rounds = 1000
 
+
 if len(sys.argv) > 1:
     if sys.argv[1][-1] == 's' or sys.argv[1][-1] == 'S':
         try:
@@ -93,10 +94,18 @@ start_time = time.time()
 each_data = []
 total_data = Value(c_ulong, 0)
 
+BLOCK_SIZE = 1024 * 1024
 
-def guzzle(fileurl):
+
+def guzzle(fileurl, bound_type, limit, start_time):
+    """
+    Downloads package at url and updates the multi-processing synchronized value 
+
+
+
+    """
     round_number = 0
-    global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time, total_data
+    global not_enough, data_limit, data_bound, time_bound, time_limit, rounds, start_time, total_data, BLOCK_SIZE
 
     #each_data[multiprocessing.current_process().name] = 0
     while not_enough:
@@ -109,25 +118,27 @@ def guzzle(fileurl):
         file_size = int(u.getheader("Content-Length"))
 
         file_size_dl = 0
-        block_sz = 1024 * 1024
+
         while True:
-            buffer = u.read(block_sz)
-            if not buffer:
+            temp_buffer = u.read(block_sz)
+            if not temp_buffer:
                 break
 
-            file_size_dl += len(buffer)
+            file_size_dl += len(temp_buffer)
+
             current_guzzled = (round_number * (float(file_size) / (1024 * 1024))) + (
                 file_size_dl / (1024 * 1024))
+
             #each_data[multiprocessing.current_process().name] += (file_size_dl/(1024*1024))
             total_data.value += int(len(buffer) / 1024 / 1024)  # file_size_dl/1024/1024
 
-            if data_bound:
-                if current_guzzled > data_limit:
+            if bound_type == 'data':
+                if current_guzzled > limit:
                     not_enough = False
                     break  # sys.exit(0)
 
-            if time_bound:
-                if time.time() - start_time > time_limit:
+            elif bound_type == 'time':
+                if time.time() - start_time > limit:
                     not_enough = False
                     break  # sys.exit(0)
 
