@@ -9,6 +9,7 @@ import functools
 import signal
 
 URLS_FILE = 'urls.txt'
+FREQUENCY_OF_CONSOLE_UPDATE_SECONDS = 0.01  # Update every 10 milliseconds
 
 
 def main():
@@ -29,6 +30,7 @@ def main():
     print('Guzzling started.')
 
     while not workers.ready():
+        time.sleep(FREQUENCY_OF_CONSOLE_UPDATE_SECONDS)
         print(guzzler.guzzle_status(start_time), end="")
 
     p.join()
