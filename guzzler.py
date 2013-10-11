@@ -19,7 +19,9 @@ GIGABYTES_PER_TERABYTE = 1024
 # 1000 years.
 DEFAULT_MAXIMUM_TIME = 1000 * 365 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
 
-DOWNLOAD_MEGABYTES_COLOUR = '38;05;42'
+DOWNLOADED_DATA_COLOUR = '38;05;42'
+TIME_ELAPSED_COLOUR = '38;05;217'
+AVERAGE_SPEED_COLOUR = '38;05;110'
 
 
 def set_args():
@@ -97,7 +99,7 @@ def read_urls(filename):
     return urls
 
 
-def color(this_color, string):
+def colour(this_color, string):
     '''
     Returns pretty string output in colour. ANSI 256 colour mode.
     
@@ -128,7 +130,11 @@ def guzzle_status(start_time):
     minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
     average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
 
-    guzzle_status = "\r%d mb guzzled in %.2f minutes with an average speed of %.2fMB/s." % (
+    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
+    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
+    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+
+    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
         megabytes_guzzled, minutes_elapsed, average_speed)
 
     return guzzle_status
