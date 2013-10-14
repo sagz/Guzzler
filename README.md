@@ -56,6 +56,6 @@ Features
 To - Do
 ==
 Non python, browser-based version  
-An extensive list of download URLs
+An extensive list of download URLs  
 [Implement 'background' mode](http://stackoverflow.com/questions/17983355/detect-if-network-is-idle-in-python)  
 Robust handling of network failures
