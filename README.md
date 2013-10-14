@@ -1,8 +1,10 @@
 Guzzler
 ==
-Guzzler is a tool to test a networks true download bandwidth.
+Guzzler is a tool to 'test' a networks true download bandwidth.
 Many ISPs provide burst download speeds which give them good results on speedtest.net but won't actually convert to a better browsing experience.
 Guzzler guzzles network bandwidth to let you know the true download bandwidth over time.
+
+Also, it helps you have the feeling of getting your 'bang for the buck' for your expensive internet (Rogers, Comcast). Mind you, this does not make civic sense.
 
 Usage    
 ==
@@ -49,8 +51,11 @@ Features
 + ANSI Colour output!
 + Lightweight
 + **requires** Python 3
- 
++ Handles most network/process failures pretty gracefully
+
 To - Do
 ==
-Non python, browser-based version?  
-[Implement 'background' mode](http://stackoverflow.com/questions/17983355/detect-if-network-is-idle-in-python)
+Non python, browser-based version  
+An extensive list of download URLs
+[Implement 'background' mode](http://stackoverflow.com/questions/17983355/detect-if-network-is-idle-in-python)  
+Robust handling of network failures
