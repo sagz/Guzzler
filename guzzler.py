@@ -39,7 +39,7 @@ def set_args():
     parser = argparse.ArgumentParser(description="""Guzzle Away!
         Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
         packages from many high-speed servers and discarding them instantly.
-        This is helpful if you want to know the true sustainable bancwidth of your internet.
+        This is helpful if you want to know the true sustainable bandwidth of your internet.
         """)
 
     bound = parser.add_mutually_exclusive_group()
