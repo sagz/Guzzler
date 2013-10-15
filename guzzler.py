@@ -25,7 +25,7 @@ AVERAGE_SPEED_COLOUR = '38;05;110'
 
 
 def set_args():
-    """
+    '''
     Collects and parses the command line arguments. All arguments are optional.
     Returns bound_type and limit.
     bound_type : string with either of two values
@@ -34,13 +34,13 @@ def set_args():
     limit : raw value of limit
             if bound_type is 'data', limit is the number of bytes
             if bound_type is 'time', limit is the number of seconds
-    """
+    '''
 
-    parser = argparse.ArgumentParser(description="""Guzzle Away!
+    parser = argparse.ArgumentParser(description='''Guzzle Away!
         Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
         packages from many high-speed servers and discarding them instantly.
         This is helpful if you want to know the true sustainable bandwidth of your internet.
-        """)
+        ''')
 
     bound = parser.add_mutually_exclusive_group()
 
@@ -141,7 +141,7 @@ def guzzle_status(start_time):
 
 
 def guzzle(bound_type, limit, start_time, url):
-    """
+    '''
     Downloads package at url and updates the multiprocessing-synchronized value "total_downloaded_bytes"
 
     url : the file url being fetched
@@ -152,7 +152,7 @@ def guzzle(bound_type, limit, start_time, url):
             if bound_type is 'data', limit is the number of bytes
             if bound_type is 'time', limit is the number of seconds
     start_time : time when guzzling started
-    """
+    '''
     global total_downloaded_bytes
 
     # parent loop which downloads the same url package till limit is crossed.
