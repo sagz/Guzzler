@@ -1,9 +1,6 @@
-import urllib.request
 import sys
 import time
-import multiprocessing
-from multiprocessing import Pool, Value
-from ctypes import c_ulong
+from multiprocessing import Pool
 import guzzler
 import functools
 import signal

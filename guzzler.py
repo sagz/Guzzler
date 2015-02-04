@@ -1,5 +1,4 @@
 import urllib.request
-import sys
 import time
 from multiprocessing import Value
 from ctypes import c_ulonglong
@@ -37,7 +36,7 @@ def set_args():
     '''
 
     parser = argparse.ArgumentParser(description='''Guzzle Away!
-        Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
+        Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading
         packages from many high-speed servers and discarding them instantly.
         This is helpful if you want to know the true sustainable bandwidth of your internet.
         ''')
@@ -102,7 +101,7 @@ def read_urls(filename):
 def colour(this_color, string):
     '''
     Returns pretty string output in colour. ANSI 256 colour mode.
-    
+
     Print all 256 colours with code snippet-
     --------------------------------------------------------------
         def color(this_color, string):
