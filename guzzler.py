@@ -1,176 +1,199 @@
 import urllib.request
-import sys
+import urllib.error
 import time
-from multiprocessing import Value
-from ctypes import c_ulonglong
-import argparse
+import os
+import math
+import multiprocessing
 
-total_downloaded_bytes = Value(c_ulonglong, 0)
-BLOCK_SIZE = 1024 * 1024
+shared_total_bytes = None
+shared_active_event = None
+shared_error_flag = None
 
-SECONDS_PER_MINUTE = 60
-MINUTES_PER_HOUR = 60
-HOURS_PER_DAY = 24
+def init_worker(total_bytes, active_event, error_flag):
+    global shared_total_bytes
+    global shared_active_event
+    global shared_error_flag
+    shared_total_bytes = total_bytes
+    shared_active_event = active_event
+    shared_error_flag = error_flag
 
-BYTES_PER_MEGABYTE = 1024 * 1024
-MEGABYTES_PER_GIGABYTE = 1024
-GIGABYTES_PER_TERABYTE = 1024
-
-# 1000 years.
-DEFAULT_MAXIMUM_TIME = 1000 * 365 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
-
-DOWNLOADED_DATA_COLOUR = '38;05;42'
-TIME_ELAPSED_COLOUR = '38;05;217'
-AVERAGE_SPEED_COLOUR = '38;05;110'
-
-
-def set_args():
-    '''
-    Collects and parses the command line arguments. All arguments are optional.
-    Returns bound_type and limit.
-    bound_type : string with either of two values
-                'data' means guzzling is limited by data
-                'time' mean guzzling is limited by time
-    limit : raw value of limit
-            if bound_type is 'data', limit is the number of bytes
-            if bound_type is 'time', limit is the number of seconds
-    '''
-
-    parser = argparse.ArgumentParser(description='''Guzzle Away!
-        Guzzler is a tool that will guzzle your internet bandwidth. It does this by downloading 
-        packages from many high-speed servers and discarding them instantly.
-        This is helpful if you want to know the true sustainable bandwidth of your internet.
-        ''')
-
-    bound = parser.add_mutually_exclusive_group()
-
-    bound.add_argument("-s", "--seconds", type=int,
-                       help="Number of seconds to guzzle away.\nDefault is 1000 years.")
-    bound.add_argument("-m", "--minutes", type=int,
-                       help="Number of minutes to guzzle away.\nDefault is 1000 years.")
-    bound.add_argument("-hr", "--hours", type=int,
-                       help="Number of hours to guzzle away.\nDefault is 1000 years.")
-    bound.add_argument("-d", "--days", type=int,
-                       help="Number of days to guzzle away.\nDefault is 1000 years.")
-    bound.add_argument("-mb", "--megabytes", type=int,
-                       help="Number of megabytes to download.\nDefault is time-bound to run 1000 years.")
-    bound.add_argument("-gb", "--gigabytes", type=int,
-                       help="Number of gigabytes to download.\nDefault is time-bound to run 1000 years.")
-    bound.add_argument("-tb", "--terabytes", type=int,
-                       help="Number of terabytes to download.\nDefault is time-bound to run 1000 years.")
-
-    # parser.add_argument("-p", "--processes", type=int,
-    #                    help="Number of guzzling processes to run simultaneously.\nDefault is 4")
-
-    args = parser.parse_args()
-
-    if args.seconds:
-        return 'time', args.seconds
-    elif args.minutes:
-        return 'time', args.minutes * SECONDS_PER_MINUTE
-    elif args.hours:
-        return 'time', args.hours * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
-    elif args.days:
-        return 'time', args.days * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE
-
-    elif args.megabytes:
-        return 'data', args.megabytes * BYTES_PER_MEGABYTE
-    elif args.gigabytes:
-        return 'data', args.gigabytes * MEGABYTES_PER_GIGABYTE * BYTES_PER_MEGABYTE
-    elif args.terabytes:
-        return 'data', args.terabytes * GIGABYTES_PER_TERABYTE * MEGABYTES_PER_GIGABYTE * BYTES_PER_MEGABYTE
-
-    else:
-        return 'time', DEFAULT_MAXIMUM_TIME
-
-
-def read_urls(filename):
-    '''
-    Reads the list of URLs from a text file in the same folder.
-    Loads from file and returns a Python list of urls
-
-    filename : name of file in the same folder with URLs (one per line)
-    '''
-    urls = []
-    for line in open(filename):
-        # Check for empty/commented lines
-        if line and not line.startswith('#') and len(line.strip()) > 5:
-            urls.append(line.strip())
-    return urls
-
-
-def colour(this_color, string):
-    '''
-    Returns pretty string output in colour. ANSI 256 colour mode.
+def download_segment_worker(args):
+    url, orig_start_byte, end_byte, dest_path, segment_index = args
     
-    Print all 256 colours with code snippet-
-    --------------------------------------------------------------
-        def color(this_color, string):
-            return "\033[" + this_color + "m" + string + "\033[0m"
-        for i in range(256):
-            c = '38;05;%d' % i
-            print( color(c, 'color ' + c) )
-    --------------------------------------------------------------
-
-    this_color : ANSI Escape sequence corresponding to a colour
-    string : string that is needed in the colour
-    '''
-    return "\033[" + this_color + "m" + string + "\033[0m"
-
-
-def guzzle_status(start_time):
-    '''
-    Makes a string of the current guzzling status.
-
-    start_time: timestamp in seconds of when guzzling process started
-
-    returns string with megabytes guzzled and average speed
-    '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
-    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
-    average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
-
-    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
-    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
-    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
-
-    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
-        megabytes_guzzled, minutes_elapsed, average_speed)
-
-    return guzzle_status
-
-
-def guzzle(bound_type, limit, start_time, url):
-    '''
-    Downloads package at url and updates the multiprocessing-synchronized value "total_downloaded_bytes"
-
-    url : the file url being fetched
-    bound_type : string with either of two values
-                'data' means guzzling is limited by data
-                'time' mean guzzling is limited by time
-    limit : raw value of limit
-            if bound_type is 'data', limit is the number of bytes
-            if bound_type is 'time', limit is the number of seconds
-    start_time : time when guzzling started
-    '''
-    global total_downloaded_bytes
-
-    # parent loop which downloads the same url package till limit is crossed.
-    while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
-
+    if not shared_active_event.is_set() or shared_error_flag.is_set():
+        return False
+        
+    current_start_byte = orig_start_byte
+    mode = 'wb'
+    max_retries = 3
+    
+    for attempt in range(max_retries + 1):
+        if not shared_active_event.is_set() or shared_error_flag.is_set():
+            return False
+            
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Guzzler-Robust-Manager/1.0')
+        if current_start_byte is not None and end_byte is not None:
+            req.add_header('Range', f'bytes={current_start_byte}-{end_byte}')
+        elif current_start_byte is not None:
+            req.add_header('Range', f'bytes={current_start_byte}-')
+            
         try:
-            u = urllib.request.urlopen(url)
-        except urllib.error.URLError:
-            print('\rInternet problems, bro')
-            continue
+            with urllib.request.urlopen(req, timeout=10) as response:
+                with open(dest_path, mode) as f:
+                    while True:
+                        if not shared_active_event.is_set() or shared_error_flag.is_set():
+                            return False
+                        chunk = response.read(1024 * 128) # 128 KB chunks
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        chunk_len = len(chunk)
+                        if current_start_byte is not None:
+                            current_start_byte += chunk_len
+                        with shared_total_bytes.get_lock():
+                            shared_total_bytes.value += chunk_len
+            return True
+        except Exception as e:
+            if attempt == max_retries:
+                shared_error_flag.set()
+                print(f"\nError downloading segment {segment_index} of {url}: {e}")
+                return False
+            
+            # Prepare to resume
+            if orig_start_byte is not None:
+                mode = 'ab'
+            else:
+                mode = 'wb'
+                
+            time.sleep(2)
+    return False
 
-        # child loop which downloads partial blocks of the url package till url
-        # package is completely downloaded
-        while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+class DownloadManager:
+    def __init__(self, num_workers=4, segment_size=1024*1024*5):
+        self.num_workers = num_workers
+        self.segment_size = segment_size
+        self.total_bytes = multiprocessing.Value('Q', 0)
+        self.active_event = multiprocessing.Event()
+        self.error_flag = multiprocessing.Event()
+        self.pool = None
+        self.start_time = None
+        self.result = None
+        
+    def get_file_info(self, url):
+        req = urllib.request.Request(url, method='HEAD')
+        req.add_header('User-Agent', 'Guzzler-Robust-Manager/1.0')
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    length = response.headers.get('Content-Length')
+                    accept_ranges = response.headers.get('Accept-Ranges') == 'bytes'
+                    return int(length) if length else None, accept_ranges
+            except Exception as e:
+                if attempt == max_retries:
+                    raise e
+                time.sleep(1)
+        return None, False
 
-            temp_buffer = u.read(BLOCK_SIZE)
+    def start_downloads(self, urls, dest_dir="."):
+        self.active_event.set()
+        self.error_flag.clear()
+        self.total_bytes.value = 0
+        self.start_time = time.time()
+        
+        if not os.path.exists(dest_dir):
+            os.makedirs(dest_dir)
 
-            if not temp_buffer:
-                break
+        tasks = []
+        self.file_segments = {}
 
-            total_downloaded_bytes.value += len(temp_buffer)
+        for url in urls:
+            filename = url.split('/')[-1] or "downloaded_file"
+            dest_file = os.path.join(dest_dir, filename)
+            
+            try:
+                length, accept_ranges = self.get_file_info(url)
+            except Exception as e:
+                self.error_flag.set()
+                print(f"\nFailed to get info for {url}: {e}")
+                return False
+                
+            if length and accept_ranges:
+                num_segments = math.ceil(length / self.segment_size)
+                self.file_segments[dest_file] = []
+                for i in range(num_segments):
+                    start_byte = i * self.segment_size
+                    end_byte = min(start_byte + self.segment_size - 1, length - 1)
+                    segment_path = f"{dest_file}.part{i}"
+                    self.file_segments[dest_file].append(segment_path)
+                    tasks.append((url, start_byte, end_byte, segment_path, i))
+            else:
+                segment_path = f"{dest_file}.part0"
+                self.file_segments[dest_file] = [segment_path]
+                tasks.append((url, None, None, segment_path, 0))
+
+        self.pool = multiprocessing.Pool(
+            processes=self.num_workers,
+            initializer=init_worker,
+            initargs=(self.total_bytes, self.active_event, self.error_flag)
+        )
+        self.result = self.pool.map_async(download_segment_worker, tasks)
+        return True
+
+    def wait(self):
+        if not self.pool:
+            return False
+            
+        try:
+            self.result.get()
+        except KeyboardInterrupt:
+            self.stop()
+            return False
+            
+        self.pool.close()
+        self.pool.join()
+        
+        if not self.active_event.is_set():
+            self._cleanup_segments(self.file_segments)
+            return False
+            
+        if self.error_flag.is_set():
+            self._cleanup_segments(self.file_segments)
+            return False
+            
+        for dest_file, segments in self.file_segments.items():
+            with open(dest_file, 'wb') as outfile:
+                for seg in segments:
+                    with open(seg, 'rb') as infile:
+                        outfile.write(infile.read())
+                    os.remove(seg)
+                    
+        return True
+
+    def _cleanup_segments(self, file_segments):
+        for dest_file, segments in file_segments.items():
+            for seg in segments:
+                if os.path.exists(seg):
+                    try:
+                        os.remove(seg)
+                    except:
+                        pass
+
+    def stop(self):
+        self.active_event.clear()
+        if self.pool:
+            self.pool.terminate()
+            self.pool.join()
+
+    def get_status(self):
+        bytes_down = self.total_bytes.value
+        elapsed = time.time() - self.start_time if self.start_time else 0
+        speed = bytes_down / elapsed if elapsed > 0 else 0
+        return {
+            'downloaded_bytes': bytes_down,
+            'elapsed_seconds': elapsed,
+            'speed_bytes_per_sec': speed,
+            'is_active': self.active_event.is_set() and not self.error_flag.is_set(),
+            'is_finished': self.result.ready() if self.pool else False
+        }
