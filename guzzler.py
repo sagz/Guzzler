@@ -1,11 +1,13 @@
 import urllib.request
 import sys
 import time
-from multiprocessing import Value
+import multiprocessing
+from multiprocessing import Value, Array
 from ctypes import c_ulonglong
 import argparse
 
-total_downloaded_bytes = Value(c_ulonglong, 0)
+NUM_WORKERS = multiprocessing.cpu_count()
+total_downloaded_bytes = Array(c_ulonglong, NUM_WORKERS, lock=False)
 BLOCK_SIZE = 1024 * 1024
 
 SECONDS_PER_MINUTE = 60
@@ -126,7 +128,7 @@ def guzzle_status(start_time):
 
     returns string with megabytes guzzled and average speed
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
+    megabytes_guzzled = sum(total_downloaded_bytes) / BYTES_PER_MEGABYTE
     minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
     average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
 
@@ -155,8 +157,11 @@ def guzzle(bound_type, limit, start_time, url):
     '''
     global total_downloaded_bytes
 
+    identity = multiprocessing.current_process()._identity
+    worker_id = (identity[0] - 1) % NUM_WORKERS if identity else 0
+
     # parent loop which downloads the same url package till limit is crossed.
-    while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+    while (bound_type == 'data' and sum(total_downloaded_bytes) < limit) or (bound_type == 'time' and time.time() - start_time < limit):
 
         try:
             u = urllib.request.urlopen(url)
@@ -166,11 +171,11 @@ def guzzle(bound_type, limit, start_time, url):
 
         # child loop which downloads partial blocks of the url package till url
         # package is completely downloaded
-        while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+        while (bound_type == 'data' and sum(total_downloaded_bytes) < limit) or (bound_type == 'time' and time.time() - start_time < limit):
 
             temp_buffer = u.read(BLOCK_SIZE)
 
             if not temp_buffer:
                 break
 
-            total_downloaded_bytes.value += len(temp_buffer)
+            total_downloaded_bytes[worker_id] += len(temp_buffer)
