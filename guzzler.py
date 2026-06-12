@@ -4,6 +4,9 @@ import time
 from multiprocessing import Value
 from ctypes import c_ulonglong
 import argparse
+import collections
+
+_history = collections.deque()
 
 total_downloaded_bytes = Value(c_ulonglong, 0)
 BLOCK_SIZE = 1024 * 1024
@@ -22,6 +25,7 @@ DEFAULT_MAXIMUM_TIME = 1000 * 365 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_P
 DOWNLOADED_DATA_COLOUR = '38;05;42'
 TIME_ELAPSED_COLOUR = '38;05;217'
 AVERAGE_SPEED_COLOUR = '38;05;110'
+CURRENT_SPEED_COLOUR = '38;05;118'
 
 
 def set_args():
@@ -126,16 +130,37 @@ def guzzle_status(start_time):
 
     returns string with megabytes guzzled and average speed
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
-    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
+    global _history
+    current_time = time.time()
+    current_bytes = total_downloaded_bytes.value
+
+    _history.append((current_time, current_bytes))
+    
+    while _history and current_time - _history[0][0] > 1.0:
+        _history.popleft()
+        
+    if len(_history) > 1:
+        time_diff = _history[-1][0] - _history[0][0]
+        bytes_diff = _history[-1][1] - _history[0][1]
+        
+        if time_diff > 0:
+            current_speed = (bytes_diff / BYTES_PER_MEGABYTE) / time_diff
+        else:
+            current_speed = 0.0
+    else:
+        current_speed = 0.0
+
+    megabytes_guzzled = current_bytes / BYTES_PER_MEGABYTE
+    minutes_elapsed = ((current_time - start_time) / SECONDS_PER_MINUTE)
     average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
 
-    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
-    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
-    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+    megabytes_guzzled_str = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
+    minutes_elapsed_str = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
+    average_speed_str = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+    current_speed_str = colour(CURRENT_SPEED_COLOUR, '%.2fMB/s' % current_speed)
 
-    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
-        megabytes_guzzled, minutes_elapsed, average_speed)
+    guzzle_status = "\r%s guzzled in %s | Session Average: %s | Current Speed: %s" % (
+        megabytes_guzzled_str, minutes_elapsed_str, average_speed_str, current_speed_str)
 
     return guzzle_status
 
