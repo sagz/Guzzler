@@ -6,7 +6,7 @@ from ctypes import c_ulonglong
 import argparse
 
 total_downloaded_bytes = Value(c_ulonglong, 0)
-BLOCK_SIZE = 1024 * 1024
+BLOCK_SIZE = 8 * 1024 * 1024
 
 SECONDS_PER_MINUTE = 60
 MINUTES_PER_HOUR = 60
@@ -164,13 +164,23 @@ def guzzle(bound_type, limit, start_time, url):
             print('\rInternet problems, bro')
             continue
 
-        # child loop which downloads partial blocks of the url package till url
-        # package is completely downloaded
-        while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+        local_accumulated = 0
+        try:
+            # child loop which downloads partial blocks of the url package till url
+            # package is completely downloaded
+            while (bound_type == 'data' and (total_downloaded_bytes.value + local_accumulated) < limit) or (bound_type == 'time' and time.time() - start_time < limit):
 
-            temp_buffer = u.read(BLOCK_SIZE)
+                temp_buffer = u.read(BLOCK_SIZE)
 
-            if not temp_buffer:
-                break
+                if not temp_buffer:
+                    break
 
-            total_downloaded_bytes.value += len(temp_buffer)
+                local_accumulated += len(temp_buffer)
+
+                if local_accumulated >= 50 * 1024 * 1024:
+                    total_downloaded_bytes.value += local_accumulated
+                    local_accumulated = 0
+        finally:
+            if local_accumulated > 0:
+                total_downloaded_bytes.value += local_accumulated
+                local_accumulated = 0
