@@ -18,12 +18,12 @@ def main():
     '''
     urls = guzzler.read_urls(URLS_FILE)
 
-    bound_type, limit = guzzler.set_args()
+    bound_type, limit, include_overhead = guzzler.set_args()
     start_time = time.time()
     p = Pool()
 
     workers = p.map_async(
-        functools.partial(guzzler.guzzle, bound_type, limit, start_time), urls)
+        functools.partial(guzzler.guzzle, bound_type, limit, start_time, include_overhead), urls)
 
     p.close()
 
@@ -31,7 +31,7 @@ def main():
 
     while not workers.ready():
         time.sleep(FREQUENCY_OF_CONSOLE_UPDATE_SECONDS)
-        print(guzzler.guzzle_status(start_time), end="")
+        print(guzzler.guzzle_status(start_time, include_overhead), end="")
 
     p.join()
     print()
