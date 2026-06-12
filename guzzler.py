@@ -23,6 +23,9 @@ DOWNLOADED_DATA_COLOUR = '38;05;42'
 TIME_ELAPSED_COLOUR = '38;05;217'
 AVERAGE_SPEED_COLOUR = '38;05;110'
 
+_last_time = None
+_last_bytes = 0
+
 
 def set_args():
     '''
@@ -124,18 +127,38 @@ def guzzle_status(start_time):
 
     start_time: timestamp in seconds of when guzzling process started
 
-    returns string with megabytes guzzled and average speed
+    returns string with megabytes guzzled and Modeled Goodput
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
-    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
-    average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
+    global _last_time, _last_bytes
 
-    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
-    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
-    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+    current_time = time.time()
+    current_bytes = total_downloaded_bytes.value
 
-    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
-        megabytes_guzzled, minutes_elapsed, average_speed)
+    if _last_time is None:
+        _last_time = start_time
+
+    time_delta = current_time - _last_time
+    bytes_delta = current_bytes - _last_bytes
+
+    if time_delta > 0:
+        # Calculate instantaneous speed with 5% overhead correction
+        instant_speed_bytes_per_sec = (bytes_delta / time_delta) * 1.05
+        instant_speed_mb_per_sec = instant_speed_bytes_per_sec / BYTES_PER_MEGABYTE
+    else:
+        instant_speed_mb_per_sec = 0.0
+
+    _last_time = current_time
+    _last_bytes = current_bytes
+
+    megabytes_guzzled = current_bytes / BYTES_PER_MEGABYTE
+    minutes_elapsed = ((current_time - start_time) / SECONDS_PER_MINUTE)
+
+    megabytes_guzzled_str = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
+    minutes_elapsed_str = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
+    instant_speed_str = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % instant_speed_mb_per_sec)
+
+    guzzle_status = "\r%s guzzled in %s with a Modeled Goodput of %s" % (
+        megabytes_guzzled_str, minutes_elapsed_str, instant_speed_str)
 
     return guzzle_status
 

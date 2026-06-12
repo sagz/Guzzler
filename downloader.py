@@ -9,7 +9,7 @@ import functools
 import signal
 
 URLS_FILE = 'urls.txt'
-FREQUENCY_OF_CONSOLE_UPDATE_SECONDS = 0.01  # Update every 10 milliseconds
+FREQUENCY_OF_CONSOLE_UPDATE_SECONDS = 0.5  # Update every 500 milliseconds
 
 
 def main():
