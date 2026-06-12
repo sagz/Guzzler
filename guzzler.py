@@ -4,6 +4,8 @@ import time
 from multiprocessing import Value
 from ctypes import c_ulonglong
 import argparse
+import psutil
+from collections import deque
 
 total_downloaded_bytes = Value(c_ulonglong, 0)
 BLOCK_SIZE = 1024 * 1024
@@ -22,6 +24,13 @@ DEFAULT_MAXIMUM_TIME = 1000 * 365 * HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_P
 DOWNLOADED_DATA_COLOUR = '38;05;42'
 TIME_ELAPSED_COLOUR = '38;05;217'
 AVERAGE_SPEED_COLOUR = '38;05;110'
+SYS_THROUGHPUT_COLOUR = '38;05;208'
+ERRORS_COLOUR = '38;05;196'
+EFFICIENCY_COLOUR = '38;05;46'
+
+# Telemetry state
+initial_net_io = None
+telemetry_window = deque()
 
 
 def set_args():
@@ -126,18 +135,52 @@ def guzzle_status(start_time):
 
     returns string with megabytes guzzled and average speed
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
-    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
-    average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
+    global initial_net_io, telemetry_window
+    
+    if initial_net_io is None:
+        initial_net_io = psutil.net_io_counters()
 
-    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
-    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
-    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+    current_time = time.time()
+    current_app_bytes = total_downloaded_bytes.value
+    
+    current_net_io = psutil.net_io_counters()
+    current_sys_bytes = current_net_io.bytes_recv + current_net_io.bytes_sent
+    
+    telemetry_window.append((current_time, current_app_bytes, current_sys_bytes))
+    while telemetry_window and current_time - telemetry_window[0][0] > 1.0:
+        telemetry_window.popleft()
+        
+    inst_app_throughput = 0.0
+    inst_sys_throughput = 0.0
+    if len(telemetry_window) > 1:
+        dt = current_time - telemetry_window[0][0]
+        if dt > 0:
+            inst_app_throughput = (current_app_bytes - telemetry_window[0][1]) / dt
+            inst_sys_throughput = (current_sys_bytes - telemetry_window[0][2]) / dt
+            
+    total_sys_bytes = current_sys_bytes - (initial_net_io.bytes_recv + initial_net_io.bytes_sent)
+    efficiency = 100.0
+    if total_sys_bytes > 0:
+        efficiency = (current_app_bytes / total_sys_bytes) * 100.0
 
-    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
-        megabytes_guzzled, minutes_elapsed, average_speed)
+    errors = (current_net_io.errin + current_net_io.errout + current_net_io.dropin + current_net_io.dropout) - \
+             (initial_net_io.errin + initial_net_io.errout + initial_net_io.dropin + initial_net_io.dropout)
 
-    return guzzle_status
+    megabytes_guzzled_val = current_app_bytes / BYTES_PER_MEGABYTE
+    minutes_elapsed_val = (current_time - start_time) / SECONDS_PER_MINUTE
+
+    megabytes_guzzled_str = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled_val)
+    minutes_elapsed_str = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed_val)
+    
+    inst_app_str = colour(AVERAGE_SPEED_COLOUR, 'App: %.2f MB/s' % (inst_app_throughput / BYTES_PER_MEGABYTE))
+    inst_sys_str = colour(SYS_THROUGHPUT_COLOUR, 'Sys: %.2f MB/s' % (inst_sys_throughput / BYTES_PER_MEGABYTE))
+    errors_str = colour(ERRORS_COLOUR, 'Errs: %d' % errors)
+    eff_str = colour(EFFICIENCY_COLOUR, 'Eff: %.1f%%' % efficiency)
+
+    guzzle_status_str = "\r%s guzzled in %s | %s | %s | %s | %s          " % (
+        megabytes_guzzled_str, minutes_elapsed_str, inst_app_str, inst_sys_str, errors_str, eff_str)
+
+    return guzzle_status_str
 
 
 def guzzle(bound_type, limit, start_time, url):
