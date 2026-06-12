@@ -1,11 +1,8 @@
 import urllib.request
 import sys
 import time
-from multiprocessing import Value
-from ctypes import c_ulonglong
 import argparse
 
-total_downloaded_bytes = Value(c_ulonglong, 0)
 BLOCK_SIZE = 1024 * 1024
 
 SECONDS_PER_MINUTE = 60
@@ -118,15 +115,16 @@ def colour(this_color, string):
     return "\033[" + this_color + "m" + string + "\033[0m"
 
 
-def guzzle_status(start_time):
+def guzzle_status(start_time, total_downloaded_bytes):
     '''
     Makes a string of the current guzzling status.
 
     start_time: timestamp in seconds of when guzzling process started
+    total_downloaded_bytes: integer representing bytes downloaded
 
     returns string with megabytes guzzled and average speed
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
+    megabytes_guzzled = total_downloaded_bytes / BYTES_PER_MEGABYTE
     minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
     average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
 
@@ -140,9 +138,9 @@ def guzzle_status(start_time):
     return guzzle_status
 
 
-def guzzle(bound_type, limit, start_time, url):
+def guzzle(bound_type, limit, start_time, queue, stop_event, url):
     '''
-    Downloads package at url and updates the multiprocessing-synchronized value "total_downloaded_bytes"
+    Downloads package at url and updates the central queue
 
     url : the file url being fetched
     bound_type : string with either of two values
@@ -152,11 +150,12 @@ def guzzle(bound_type, limit, start_time, url):
             if bound_type is 'data', limit is the number of bytes
             if bound_type is 'time', limit is the number of seconds
     start_time : time when guzzling started
+    queue : multiprocessing queue for reporting downloaded chunks
+    stop_event : multiprocessing event to signal when to stop
     '''
-    global total_downloaded_bytes
 
     # parent loop which downloads the same url package till limit is crossed.
-    while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+    while not stop_event.is_set() and (bound_type == 'data' or (bound_type == 'time' and time.time() - start_time < limit)):
 
         try:
             u = urllib.request.urlopen(url)
@@ -166,11 +165,11 @@ def guzzle(bound_type, limit, start_time, url):
 
         # child loop which downloads partial blocks of the url package till url
         # package is completely downloaded
-        while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+        while not stop_event.is_set() and (bound_type == 'data' or (bound_type == 'time' and time.time() - start_time < limit)):
 
             temp_buffer = u.read(BLOCK_SIZE)
 
             if not temp_buffer:
                 break
 
-            total_downloaded_bytes.value += len(temp_buffer)
+            queue.put(len(temp_buffer))
