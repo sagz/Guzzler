@@ -1,11 +1,20 @@
 import urllib.request
+import urllib.parse
 import sys
 import time
+import socket
+import ssl
+import struct
 from multiprocessing import Value
 from ctypes import c_ulonglong
 import argparse
 
 total_downloaded_bytes = Value(c_ulonglong, 0)
+shared_retrans = Value(c_ulonglong, 0)
+shared_lost = Value(c_ulonglong, 0)
+shared_rtt = Value(c_ulonglong, 0)
+shared_cwnd = Value(c_ulonglong, 0)
+
 BLOCK_SIZE = 1024 * 1024
 
 SECONDS_PER_MINUTE = 60
@@ -118,6 +127,9 @@ def colour(this_color, string):
     return "\033[" + this_color + "m" + string + "\033[0m"
 
 
+last_check_time = 0
+last_check_bytes = 0
+
 def guzzle_status(start_time):
     '''
     Makes a string of the current guzzling status.
@@ -126,16 +138,33 @@ def guzzle_status(start_time):
 
     returns string with megabytes guzzled and average speed
     '''
-    megabytes_guzzled = total_downloaded_bytes.value / BYTES_PER_MEGABYTE
-    minutes_elapsed = ((time.time() - start_time) / SECONDS_PER_MINUTE)
-    average_speed = megabytes_guzzled / minutes_elapsed / SECONDS_PER_MINUTE
+    global last_check_time, last_check_bytes
+    current_time = time.time()
+    current_bytes = total_downloaded_bytes.value
 
-    megabytes_guzzled = colour(DOWNLOADED_DATA_COLOUR, '%d mb' % megabytes_guzzled)
-    minutes_elapsed = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
-    average_speed = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % average_speed)
+    megabytes_guzzled = current_bytes / BYTES_PER_MEGABYTE
+    minutes_elapsed = ((current_time - start_time) / SECONDS_PER_MINUTE)
+    
+    interval_time = current_time - last_check_time
+    if last_check_time > 0 and interval_time > 0:
+        interval_speed = ((current_bytes - last_check_bytes) / BYTES_PER_MEGABYTE) / interval_time
+    else:
+        interval_speed = 0.0
+        
+    last_check_time = current_time
+    last_check_bytes = current_bytes
 
-    guzzle_status = "\r%s guzzled in %s with an average speed of %s" % (
-        megabytes_guzzled, minutes_elapsed, average_speed)
+    megabytes_guzzled_str = colour(DOWNLOADED_DATA_COLOUR, '%.2f mb' % megabytes_guzzled)
+    minutes_elapsed_str = colour(TIME_ELAPSED_COLOUR, '%.2f minutes' % minutes_elapsed)
+    average_speed_str = colour(AVERAGE_SPEED_COLOUR, '%.2fMB/s' % interval_speed)
+    
+    retrans_str = colour('38;05;196', 'Retrans: %d' % shared_retrans.value)
+    lost_str = colour('38;05;208', 'Loss: %d' % shared_lost.value)
+    rtt_str = colour('38;05;220', 'RTT: %.2fms' % (shared_rtt.value / 1000.0))
+    cwnd_str = colour('38;05;46', 'CWND: %d' % shared_cwnd.value)
+
+    guzzle_status = "\r%s guzzled in %s | Speed: %s | %s | %s | %s | %s          " % (
+        megabytes_guzzled_str, minutes_elapsed_str, average_speed_str, retrans_str, lost_str, rtt_str, cwnd_str)
 
     return guzzle_status
 
@@ -154,23 +183,82 @@ def guzzle(bound_type, limit, start_time, url):
     start_time : time when guzzling started
     '''
     global total_downloaded_bytes
+    global shared_retrans, shared_lost, shared_rtt, shared_cwnd
 
-    # parent loop which downloads the same url package till limit is crossed.
     while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
-
         try:
-            u = urllib.request.urlopen(url)
-        except urllib.error.URLError:
+            parsed = urllib.parse.urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == 'https' else 80)
+            
+            sock = socket.create_connection((host, port), timeout=5)
+            if parsed.scheme == 'https':
+                ctx = ssl.create_default_context()
+                sock = ctx.wrap_socket(sock, server_hostname=host)
+                
+            request = f"GET {parsed.path or '/'} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+            sock.sendall(request.encode('utf-8'))
+        except Exception:
             print('\rInternet problems, bro')
             continue
+            
+        last_tcp_bytes = 0
+        last_retrans = 0
+        last_lost = 0
 
-        # child loop which downloads partial blocks of the url package till url
-        # package is completely downloaded
         while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
-
-            temp_buffer = u.read(BLOCK_SIZE)
-
-            if not temp_buffer:
+            try:
+                temp_buffer = sock.recv(BLOCK_SIZE)
+                if not temp_buffer:
+                    break
+                    
+                # Try to fetch TCP telemetry using standard TCP_INFO
+                tcp_info_supported = hasattr(socket, 'TCP_INFO')
+                tcp_info_success = False
+                
+                if tcp_info_supported:
+                    try:
+                        info = sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_INFO, 248)
+                        fmt = '8B 24I 4Q 2I'
+                        size = struct.calcsize(fmt)
+                        if len(info) >= size:
+                            unpacked = struct.unpack(fmt, info[:size])
+                            
+                            rtt = unpacked[23]
+                            cwnd = unpacked[26]
+                            total_retrans_val = unpacked[31]
+                            lost = unpacked[14]
+                            bytes_received = unpacked[35]
+                            
+                            new_bytes = bytes_received - last_tcp_bytes
+                            new_retrans = total_retrans_val - last_retrans
+                            new_lost = lost - last_lost
+                            
+                            last_tcp_bytes = bytes_received
+                            last_retrans = total_retrans_val
+                            last_lost = lost
+                            
+                            if new_bytes > 0:
+                                total_downloaded_bytes.value += new_bytes
+                            if new_retrans > 0:
+                                shared_retrans.value += new_retrans
+                            if new_lost > 0:
+                                shared_lost.value += new_lost
+                                
+                            shared_rtt.value = rtt
+                            shared_cwnd.value = cwnd
+                            
+                            tcp_info_success = True
+                    except Exception:
+                        pass
+                
+                # Fallback to application-layer counting if TCP_INFO is unavailable
+                if not tcp_info_success:
+                    total_downloaded_bytes.value += len(temp_buffer)
+            except Exception:
                 break
-
-            total_downloaded_bytes.value += len(temp_buffer)
+        
+        try:
+            sock.close()
+        except Exception:
+            pass
