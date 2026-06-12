@@ -2,6 +2,7 @@ import urllib.request
 import sys
 import time
 import multiprocessing
+import math
 from multiprocessing import Pool, Value
 from ctypes import c_ulong
 import guzzler
@@ -17,6 +18,12 @@ def main():
     Starts Guzzling processes based on optional user commandline arguments and exits
     '''
     urls = guzzler.read_urls(URLS_FILE)
+
+    if urls:
+        process_count = multiprocessing.cpu_count() or 1
+        if len(urls) < process_count:
+            multiplier = math.ceil(process_count / len(urls))
+            urls = urls * multiplier
 
     bound_type, limit = guzzler.set_args()
     start_time = time.time()
