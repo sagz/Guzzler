@@ -4,6 +4,7 @@ import time
 from multiprocessing import Value
 from ctypes import c_ulonglong
 import argparse
+from progress_tracker import BatchedProgressTracker
 
 total_downloaded_bytes = Value(c_ulonglong, 0)
 BLOCK_SIZE = 1024 * 1024
@@ -155,22 +156,23 @@ def guzzle(bound_type, limit, start_time, url):
     '''
     global total_downloaded_bytes
 
-    # parent loop which downloads the same url package till limit is crossed.
-    while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
-
-        try:
-            u = urllib.request.urlopen(url)
-        except urllib.error.URLError:
-            print('\rInternet problems, bro')
-            continue
-
-        # child loop which downloads partial blocks of the url package till url
-        # package is completely downloaded
+    with BatchedProgressTracker(total_downloaded_bytes) as tracker:
+        # parent loop which downloads the same url package till limit is crossed.
         while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
-
-            temp_buffer = u.read(BLOCK_SIZE)
-
-            if not temp_buffer:
-                break
-
-            total_downloaded_bytes.value += len(temp_buffer)
+    
+            try:
+                u = urllib.request.urlopen(url)
+            except urllib.error.URLError:
+                print('\rInternet problems, bro')
+                continue
+    
+            # child loop which downloads partial blocks of the url package till url
+            # package is completely downloaded
+            while (bound_type == 'data' and total_downloaded_bytes.value < limit) or (bound_type == 'time' and time.time() - start_time < limit):
+    
+                temp_buffer = u.read(BLOCK_SIZE)
+    
+                if not temp_buffer:
+                    break
+    
+                tracker.update(len(temp_buffer))
