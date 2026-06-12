@@ -173,4 +173,5 @@ def guzzle(bound_type, limit, start_time, url):
             if not temp_buffer:
                 break
 
-            total_downloaded_bytes.value += len(temp_buffer)
+            with total_downloaded_bytes.get_lock():
+                total_downloaded_bytes.value += len(temp_buffer)
